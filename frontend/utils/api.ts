@@ -4,12 +4,6 @@ export async function fetchMessage(): Promise<string> {
   return data.message;
 }
 
-export async function fetchMessage(): Promise<string> {
-  const res = await fetch("https://nextjsfastapisample-production.up.railway.app/api/hello");
-  const data = await res.json();
-  return data.message;
-}
-
 export async function downloadPdf(options: {
   type: 'reportlab' | 'reportlab-ttf' | 'weasyprint';
 } = { type: 'reportlab' }): Promise<void> {
