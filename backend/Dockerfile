@@ -1,4 +1,3 @@
-# Dockerfile例（Railway.appなどで使用する場合）
 FROM python:3.10-slim
 
 # WeasyPrintの依存関係をインストール
@@ -15,13 +14,33 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf2.0-0 \
     libffi-dev \
     shared-mime-info \
+    fonts-ipafont \
+    fonts-ipaexfont \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt .
+# 必要なファイルをコピー
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# 日本語フォント用のディレクトリを作成
+RUN mkdir -p fonts
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "$PORT"]
+# フォントへのシンボリックリンクを作成
+RUN ln -s /usr/share/fonts/opentype/ipafont-gothic/ipag.ttf /app/fonts/ipag.ttf \
+    && ln -s /usr/share/fonts/opentype/ipafont-mincho/ipam.ttf /app/fonts/ipam.ttf \
+    && ln -s /usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf /app/fonts/ipaexg.ttf \
+    && ln -s /usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf /app/fonts/ipaexm.ttf
+
+# テンプレートディレクトリを作成
+RUN mkdir -p templates
+
+# バックエンドのコードをコピー
+COPY backend/ .
+
+# ポート設定（環境変数を使うためシェルを使用）
+EXPOSE 8000
+
+# シェルスクリプトを使って環境変数を正しく解釈
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
