@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 reportlab
 python-multipart  # フォームデータ処理用
+pillow  # 画像処理用（ReportLabと一緒に使用）

@@ -4,10 +4,15 @@ export async function fetchMessage(): Promise<string> {
   return data.message;
 }
 
-export async function downloadPdf(): Promise<void> {
+export async function downloadPdf(useTtfFont: boolean = false): Promise<void> {
   try {
+    // 使用するエンドポイントを選択
+    const endpoint = useTtfFont 
+      ? "https://nextjsfastapisample-production.up.railway.app/api/generate-pdf-with-ttf"
+      : "https://nextjsfastapisample-production.up.railway.app/api/generate-pdf";
+    
     // APIエンドポイントからPDFをフェッチ
-    const response = await fetch("https://nextjsfastapisample-production.up.railway.app/api/generate-pdf");
+    const response = await fetch(endpoint);
     
     if (!response.ok) {
       throw new Error(`Error: ${response.status}`);
@@ -19,10 +24,13 @@ export async function downloadPdf(): Promise<void> {
     // BlobからURLを作成
     const url = window.URL.createObjectURL(blob);
     
+    // ファイル名を決定
+    const filename = useTtfFont ? "sample_with_ttf.pdf" : "sample.pdf";
+    
     // 一時的なリンク要素を作成してクリックイベントをトリガーする
     const a = document.createElement("a");
     a.href = url;
-    a.download = "sample.pdf";
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     
