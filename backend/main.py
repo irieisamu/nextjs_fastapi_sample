@@ -8,7 +8,7 @@ app = FastAPI()
 # CORSの設定（開発中は "*"、本番は特定ドメインに制限）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 例: ["https://your-vercel-app.vercel.app"]
+    allow_origins=["https://nextjsfastapisample.vercel.app/"],  # 例: ["https://your-vercel-app.vercel.app"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
