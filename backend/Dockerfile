@@ -21,23 +21,20 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # 必要なファイルをコピー
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 日本語フォント用のディレクトリを作成
-RUN mkdir -p fonts
+RUN mkdir -p fonts templates
 
 # フォントへのシンボリックリンクを作成
-RUN ln -s /usr/share/fonts/opentype/ipafont-gothic/ipag.ttf /app/fonts/ipag.ttf \
-    && ln -s /usr/share/fonts/opentype/ipafont-mincho/ipam.ttf /app/fonts/ipam.ttf \
-    && ln -s /usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf /app/fonts/ipaexg.ttf \
-    && ln -s /usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf /app/fonts/ipaexm.ttf
-
-# テンプレートディレクトリを作成
-RUN mkdir -p templates
+RUN ln -s /usr/share/fonts/opentype/ipafont-gothic/ipag.ttf /app/fonts/ipag.ttf 2>/dev/null || true \
+    && ln -s /usr/share/fonts/opentype/ipafont-mincho/ipam.ttf /app/fonts/ipam.ttf 2>/dev/null || true \
+    && ln -s /usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf /app/fonts/ipaexg.ttf 2>/dev/null || true \
+    && ln -s /usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf /app/fonts/ipaexm.ttf 2>/dev/null || true
 
 # バックエンドのコードをコピー
-COPY backend/ .
+COPY . .
 
 # ポート設定（環境変数を使うためシェルを使用）
 EXPOSE 8000
