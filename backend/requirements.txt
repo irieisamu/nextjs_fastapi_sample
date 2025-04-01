@@ -1,2 +1,4 @@
 fastapi
 uvicorn[standard]
+reportlab
+python-multipart  # フォームデータ処理用
