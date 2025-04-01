@@ -1,154 +1,247 @@
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 import os
 import uvicorn
-import tempfile
 from io import BytesIO
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.units import cm
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+import jinja2
+from weasyprint import HTML, CSS
+from fastapi.responses import FileResponse
+import tempfile
 import pathlib
+from datetime import datetime
 
 app = FastAPI()
 
-# CORSの設定（開発中は "*"、本番は特定ドメインに制限）
+# CORSの設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://nextjsfastapisample.vercel.app", "http://localhost:3000"],  # ローカル開発用を追加
+    allow_origins=["https://nextjsfastapisample.vercel.app", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Jinja2テンプレート設定
+templates_dir = pathlib.Path(__file__).parent / "templates"
+if not templates_dir.exists():
+    templates_dir.mkdir(parents=True)
+
+# テンプレートローダーを設定
+template_loader = jinja2.FileSystemLoader(templates_dir)
+template_env = jinja2.Environment(loader=template_loader)
+
 @app.get("/api/hello")
 def read_hello():
     return {"message": "Hello from FastAPI! from backend"}
 
-@app.get("/api/generate-pdf")
-def generate_pdf():
-    # 組み込みの日本語CIDフォントを登録
-    pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5'))  # 日本語ゴシック体
-    pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))     # 日本語明朝体
+@app.get("/api/generate-pdf-weasy")
+def generate_pdf_weasy():
+    """WeasyPrintを使用してリッチなレイアウトのPDFを生成する"""
     
-    # カレントディレクトリにfontsフォルダがある場合は外部フォントを使用
-    # 注意: 実際のデプロイ時にはフォントファイルを配置する必要があります
-    fonts_dir = pathlib.Path(__file__).parent / "fonts"
-    use_external_font = False
+    # テンプレートファイルがない場合は、サンプルテンプレートを作成
+    template_path = templates_dir / "report_template.html"
+    if not template_path.exists():
+        with open(template_path, "w", encoding="utf-8") as f:
+            f.write("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>レポート</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 24pt;
+            margin-bottom: 0.5cm;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3cm;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 1cm;
+        }
+        .logo {
+            width: 100px;
+            height: auto;
+        }
+        .date {
+            color: #7f8c8d;
+            font-size: 10pt;
+            margin-top: 0.5cm;
+            text-align: right;
+        }
+        .content {
+            margin: 1cm 0;
+        }
+        .section {
+            margin-bottom: 1cm;
+        }
+        .section h2 {
+            color: #3498db;
+            font-size: 16pt;
+            margin-bottom: 0.3cm;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.5cm 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            padding: 0.3cm;
+            text-align: left;
+        }
+        td {
+            padding: 0.3cm;
+        }
+        .chart {
+            text-align: center;
+            margin: 1cm 0;
+        }
+        .footer {
+            margin-top: 2cm;
+            border-top: 1px solid #eee;
+            padding-top: 0.5cm;
+            text-align: center;
+            font-size: 9pt;
+            color: #7f8c8d;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 0.5cm;
+            margin: 0.5cm 0;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5cm;
+            margin-bottom: 1cm;
+        }
+        .grid-item {
+            background-color: #f0f7ff;
+            padding: 0.5cm;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>サンプルレポート</h1>
+        <div class="date">作成日時: {{ date }}</div>
+    </div>
     
-    # 外部フォントがある場合は登録
-    if fonts_dir.exists():
-        font_path = fonts_dir / "ipaexg.ttf"  # IPAexゴシック
-        if font_path.exists():
-            pdfmetrics.registerFont(TTFont('IPAexGothic', str(font_path)))
-            use_external_font = True
-    
-    # PDFを生成するためのメモリバッファを作成
-    buffer = BytesIO()
-    
-    # PDFキャンバスを作成
-    p = canvas.Canvas(buffer, pagesize=A4)
-    
-    # フォント選択（外部フォントまたは組み込みフォント）
-    title_font = 'IPAexGothic' if use_external_font else 'HeiseiKakuGo-W5'
-    body_font = 'IPAexGothic' if use_external_font else 'HeiseiKakuGo-W5'
-    
-    # PDFの内容を追加
-    p.setFont(title_font, 16)
-    p.drawString(2*cm, 28*cm, "サンプルPDFドキュメント")
-    
-    p.setFont(body_font, 12)
-    p.drawString(2*cm, 26*cm, "これはNext.jsとFastAPIで生成されたPDFファイルです。")
-    p.drawString(2*cm, 25*cm, "このPDFはReportLabライブラリを使用して作成されています。")
-    p.drawString(2*cm, 24*cm, "日本語フォントに対応しています。")
-    
-    # 日付を追加
-    import datetime
-    now = datetime.datetime.now()
-    date_string = now.strftime("%Y年%m月%d日 %H:%M:%S")
-    p.drawString(2*cm, 22*cm, f"生成日時: {date_string}")
-    
-    # PDFを保存
-    p.showPage()
-    p.save()
-    
-    # バッファの位置を先頭に戻す
-    buffer.seek(0)
-    
-    # PDFをレスポンスとして返す
-    return Response(
-        content=buffer.getvalue(), 
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=sample.pdf"}
-    )
-
-@app.get("/api/generate-pdf-with-ttf")
-def generate_pdf_with_ttf():
-    """
-    外部TTFフォントを使用してPDFを生成するエンドポイント
-    注意: このエンドポイントが動作するには、fontsディレクトリ内にTTFフォントが必要です
-    """
-    # 一時ファイルを作成
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        temp_path = tmp.name
-    
-    # 外部フォントのパスを指定
-    try:
-        # カレントディレクトリにfontsフォルダとフォントファイルがあるかチェック
-        fonts_dir = pathlib.Path(__file__).parent / "fonts"
-        gothic_font_path = fonts_dir / "ipaexg.ttf"  # IPAexゴシック
-        mincho_font_path = fonts_dir / "ipaexm.ttf"  # IPAex明朝
-        
-        # フォントが存在するか確認
-        if not gothic_font_path.exists() or not mincho_font_path.exists():
-            # フォントがない場合は組み込みフォントを使用する方のエンドポイントにリダイレクト
-            return generate_pdf()
+    <div class="content">
+        <div class="section">
+            <h2>概要</h2>
+            <p>このレポートは、WeasyPrintとFastAPIを使用して生成されたリッチなレイアウトのPDFサンプルです。HTML/CSSを使用してさまざまなスタイルやレイアウトを適用できます。</p>
             
-        # フォントを登録
-        pdfmetrics.registerFont(TTFont('IPAexGothic', str(gothic_font_path)))
-        pdfmetrics.registerFont(TTFont('IPAexMincho', str(mincho_font_path)))
+            <div class="info-box">
+                <strong>重要:</strong> WeasyPrintは強力なHTML/CSSレンダリングエンジンで、高品質なPDFを生成できます。
+            </div>
+        </div>
         
-        # PDFを生成
-        c = canvas.Canvas(temp_path, pagesize=A4)
+        <div class="section">
+            <h2>データ</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>数値</th>
+                        <th>カテゴリ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in data %}
+                    <tr>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.value }}</td>
+                        <td>{{ item.category }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         
-        # タイトル
-        c.setFont('IPAexGothic', 18)
-        c.drawString(2*cm, 28*cm, "外部フォントを使用したPDF")
-        
-        # 本文
-        c.setFont('IPAexGothic', 12)
-        c.drawString(2*cm, 26*cm, "これは外部TTFフォント（IPAexゴシック）を使用したPDFです。")
-        c.drawString(2*cm, 25*cm, "日本語が正しく表示されます。")
-        
-        # 明朝体のテキスト
-        c.setFont('IPAexMincho', 12)
-        c.drawString(2*cm, 23*cm, "こちらは明朝体（IPAex明朝）のテキストです。")
-        
-        # 日付
-        import datetime
-        now = datetime.datetime.now()
-        date_string = now.strftime("%Y年%m月%d日 %H:%M:%S")
-        c.drawString(2*cm, 21*cm, f"生成日時: {date_string}")
-        
-        c.showPage()
-        c.save()
-        
-        # 生成したPDFを返す
-        return FileResponse(
-            path=temp_path,
-            media_type="application/pdf",
-            filename="sample_with_ttf.pdf"
-        )
+        <div class="section">
+            <h2>グリッドレイアウト</h2>
+            <div class="grid-container">
+                <div class="grid-item">
+                    <h3>特徴1</h3>
+                    <p>CSSグリッドを使用したレイアウト例です。複数の列を簡単に作成できます。</p>
+                </div>
+                <div class="grid-item">
+                    <h3>特徴2</h3>
+                    <p>レスポンシブデザインの原則をPDFにも適用できます。</p>
+                </div>
+                <div class="grid-item">
+                    <h3>特徴3</h3>
+                    <p>複雑なレイアウトも直感的に作成可能です。</p>
+                </div>
+                <div class="grid-item">
+                    <h3>特徴4</h3>
+                    <p>CSSの全機能を活用してスタイリングできます。</p>
+                </div>
+            </div>
+        </div>
+    </div>
     
+    <div class="footer">
+        <p>© 2025 サンプルカンパニー - このPDFはWeasyPrintで生成されました</p>
+    </div>
+</body>
+</html>
+            """)
+    
+    try:
+        # テンプレートを読み込み
+        template = template_env.get_template("report_template.html")
+        
+        # テンプレートに渡すデータ
+        context = {
+            "date": datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"),
+            "data": [
+                {"name": "製品A", "value": 120, "category": "電子機器"},
+                {"name": "製品B", "value": 85, "category": "家具"},
+                {"name": "製品C", "value": 210, "category": "食品"},
+                {"name": "製品D", "value": 65, "category": "衣料品"},
+                {"name": "製品E", "value": 175, "category": "電子機器"}
+            ]
+        }
+        
+        # HTMLテンプレートをレンダリング
+        html_content = template.render(**context)
+        
+        # HTMLからPDFを生成
+        pdf_file = BytesIO()
+        HTML(string=html_content).write_pdf(pdf_file)
+        pdf_file.seek(0)
+        
+        # PDFをレスポンスとして返す
+        return Response(
+            content=pdf_file.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=report.pdf"}
+        )
+        
     except Exception as e:
-        # エラーが発生した場合は組み込みフォントを使用する方のエンドポイントにリダイレクト
-        print(f"外部フォントロードエラー: {e}")
-        return generate_pdf()
+        print(f"PDF生成エラー: {e}")
+        return {"error": str(e)}
 
-# Railway 用の起動コード（__name__ == "__main__" のときだけ実行）
+# Railway 用の起動コード
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
